@@ -87,4 +87,4 @@ All commits should follow the [Conventional Commits](https://www.conventionalcom
 ### License
 
 This project is licensed under the [MIT License](./LICENSE).  
-© 2025 discordzig — All rights reserved.
+© 2025 discord.zig - All rights reserved.
