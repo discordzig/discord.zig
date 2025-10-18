@@ -1,4 +1,4 @@
-### Contributing to discord.zig
+<h1 align="center">Contributing to discord.zig</h1>
 
 Thank you for your interest in contributing to **discord.zig**!  
 This project is still in early development, and every idea, report, or contribution helps shape its foundation.
