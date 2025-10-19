@@ -21,28 +21,82 @@ jobs:
     if: github.event.action != 'closed'
     runs-on: ubuntu-latest
     steps:
-      - name: Auto request reviews from CODEOWNERS
-        if: github.event_name == 'pull_request_target' && github.event.pull_request.draft == false
-        uses: necojackarc/auto-request-review@v0.7.0
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          config: .github/CODEOWNERS
+      - uses: actions/checkout@v4
 
-      - name: Fallback request to core team if none requested
+      - name: Request reviewers from CODEOWNERS
         if: github.event_name == 'pull_request_target' && github.event.pull_request.draft == false
         uses: actions/github-script@v7
         with:
           script: |
+            const fs = require('fs');
+            const path = require('path');
+
             const owner = context.repo.owner;
             const repo  = context.repo.repo;
-            const prNum = context.payload.pull_request.number;
-            const { data: pr } = await github.rest.pulls.get({ owner, repo, pull_number: prNum });
-            const noUsers = (pr.requested_reviewers || []).length === 0;
-            const noTeams = (pr.requested_teams || []).length === 0;
-            if (noUsers && noTeams) {
+            const pr    = context.payload.pull_request;
+            const prNum = pr.number;
+
+            const p = path.join(process.cwd(), '.github', 'CODEOWNERS');
+            if (!fs.existsSync(p)) return;
+            const raw = fs.readFileSync(p, 'utf8');
+
+            const toRegex = (pat) => {
+              let s = pat.trim()
+                .replace(/([.+^=!:${}()|[\]\\])/g, '\\$1')
+                .replace(/\*\*/g, '::DS::')
+                .replace(/\*/g, '[^/]*')
+                .replace(/::DS::/g, '.*')
+                .replace(/\?/g, '[^/]');
+              if (s.startsWith('/')) s = '^' + s.slice(1);
+              else s = '(?:.*/)?' + s + '$';
+              return new RegExp(s.endsWith('$') ? s : s + '$');
+            };
+
+            const rules = [];
+            for (const line of raw.split(/\r?\n/)) {
+              const t = line.trim();
+              if (!t || t.startsWith('#')) continue;
+              const parts = t.split(/\s+/);
+              const pattern = parts.shift();
+              const owners  = parts.filter(Boolean);
+              if (!pattern || owners.length === 0) continue;
+              rules.push({ re: toRegex(pattern), owners });
+            }
+
+            const files = await github.paginate(github.rest.pulls.listFiles, {
+              owner, repo, pull_number: prNum, per_page: 100
+            });
+            const changed = files.map(f => f.filename);
+
+            const users = new Set();
+            const teams = new Set();
+            for (const file of changed) {
+              let match = null;
+              for (const r of rules) if (r.re.test(file)) match = r;
+              if (match) {
+                for (const o of match.owners) {
+                  if (!o.startsWith('@')) continue;
+                  const id = o.slice(1);
+                  const parts = id.split('/');
+                  if (parts.length === 2) teams.add(parts[1]);
+                  else users.add(id);
+                }
+              }
+            }
+
+            const { data: prFull } = await github.rest.pulls.get({ owner, repo, pull_number: prNum });
+            const hasUsers = (prFull.requested_reviewers || []).length > 0;
+            const hasTeams = (prFull.requested_teams || []).length > 0;
+
+            if (!hasUsers && !hasTeams && users.size === 0 && teams.size === 0) {
+              teams.add('core');
+            }
+
+            if (users.size || teams.size) {
               await github.rest.pulls.requestReviewers({
                 owner, repo, pull_number: prNum,
-                team_reviewers: ["core"]
+                reviewers: [...users],
+                team_reviewers: [...teams]
               }).catch(() => {});
             }
 
@@ -118,6 +172,8 @@ jobs:
     if: github.event_name == 'pull_request_target' && (github.event.action == 'closed' || github.event.action == 'reopened')
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v4
+
       - name: Update state labels
         uses: actions/github-script@v7
         with:
