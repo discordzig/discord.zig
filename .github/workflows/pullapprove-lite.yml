@@ -182,7 +182,6 @@ jobs:
             const repo  = context.repo.repo;
             const pr    = context.payload.pull_request;
             if (!pr) return;
-            const number = pr.number;
 
             const COLORS = {
               "Merge: successful": "0e8a16",
@@ -195,16 +194,16 @@ jobs:
             }
             for (const n of Object.keys(COLORS)) await ensure(n);
 
-            const { data: cur } = await github.rest.issues.listLabelsOnIssue({ owner, repo, issue_number: number });
+            const { data: cur } = await github.rest.issues.listLabelsOnIssue({ owner, repo, issue_number: pr.number });
             const have = new Set(cur.map(l => l.name));
             const purge = [...have].filter(n => n.startsWith("PA: ") || ["Merge: successful","Merge: declined","Reopened"].includes(n));
-            for (const n of purge) await github.rest.issues.removeLabel({ owner, repo, issue_number: number, name: n }).catch(() => {});
+            for (const n of purge) await github.rest.issues.removeLabel({ owner, repo, issue_number: pr.number, name: n }).catch(() => {});
 
             if (context.payload.action === "reopened") {
-              await github.rest.issues.addLabels({ owner, repo, issue_number: number, labels: ["Reopened"] }).catch(() => {});
+              await github.rest.issues.addLabels({ owner, repo, issue_number: pr.number, labels: ["Reopened"] }).catch(() => {});
             } else if (context.payload.action === "closed") {
               await github.rest.issues.addLabels({
-                owner, repo, issue_number: number,
+                owner, repo, issue_number: pr.number,
                 labels: [pr.merged ? "Merge: successful" : "Merge: declined"]
               }).catch(() => {});
             }
