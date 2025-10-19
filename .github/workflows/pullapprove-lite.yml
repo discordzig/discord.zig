@@ -22,12 +22,29 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Auto request reviews from CODEOWNERS
-        if: github.event_name == 'pull_request_target'
+        if: github.event_name == 'pull_request_target' && github.event.pull_request.draft == false
         uses: necojackarc/auto-request-review@v0.7.0
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           config: .github/CODEOWNERS
-          skip-draft: true
+
+      - name: Fallback request to core team if none requested
+        if: github.event_name == 'pull_request_target' && github.event.pull_request.draft == false
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const owner = context.repo.owner;
+            const repo  = context.repo.repo;
+            const prNum = context.payload.pull_request.number;
+            const { data: pr } = await github.rest.pulls.get({ owner, repo, pull_number: prNum });
+            const noUsers = (pr.requested_reviewers || []).length === 0;
+            const noTeams = (pr.requested_teams || []).length === 0;
+            if (noUsers && noTeams) {
+              await github.rest.pulls.requestReviewers({
+                owner, repo, pull_number: prNum,
+                team_reviewers: ["core"]
+              }).catch(() => {});
+            }
 
       - name: Evaluate approvals and update labels/check
         uses: actions/github-script@v7
@@ -39,12 +56,12 @@ jobs:
             if (!pr) return core.setFailed("No pull_request in payload.");
             const number = pr.number;
 
-            const REQUIRED_APPROVALS = 1;
+            const REQUIRED = 1;
             const LABELS = {
               pending:  ["PA: Maintainers pending", "PA: All Contributors pending"],
               approved: ["PA: Maintainers approved", "PA: All Contributors approved"]
             };
-            const LABEL_COLORS = {
+            const COLORS = {
               "PA: Maintainers pending":  "c5def5",
               "PA: All Contributors pending": "c5def5",
               "PA: Maintainers approved": "bfe5bf",
@@ -54,39 +71,35 @@ jobs:
               "Reopened":          "0366d6"
             };
 
-            const allReviews = await github.paginate(
+            const reviews = await github.paginate(
               github.rest.pulls.listReviews,
               { owner, repo, pull_number: number, per_page: 100 }
             );
+            const latest = new Map();
+            for (const r of reviews) latest.set(r.user.login, r.state);
+            const approvals = [...latest.values()].filter(s => s === "APPROVED").length;
+            const ok = approvals >= REQUIRED;
 
-            const latestByUser = new Map();
-            for (const r of allReviews) latestByUser.set(r.user.login, r.state);
-            const approvals = [...latestByUser.values()].filter(s => s === "APPROVED").length;
-            const hasEnough = approvals >= REQUIRED_APPROVALS;
-
-            async function ensureLabel(name) {
+            async function ensure(name) {
               try { await github.rest.issues.getLabel({ owner, repo, name }); }
-              catch { await github.rest.issues.createLabel({ owner, repo, name, color: LABEL_COLORS[name] || "ededed" }).catch(() => {}); }
+              catch { await github.rest.issues.createLabel({ owner, repo, name, color: COLORS[name] || "ededed" }).catch(() => {}); }
             }
-            for (const l of [...LABELS.pending, ...LABELS.approved, "Merge: successful", "Merge: declined", "Reopened"]) await ensureLabel(l);
+            for (const n of [...LABELS.pending, ...LABELS.approved, "Merge: successful","Merge: declined","Reopened"]) await ensure(n);
 
-            const { data: current } = await github.rest.issues.listLabelsOnIssue({ owner, repo, issue_number: number });
-            const have = new Set(current.map(l => l.name));
-            const add = hasEnough ? LABELS.approved : LABELS.pending;
-            const rm  = hasEnough ? LABELS.pending  : LABELS.approved;
+            const { data: cur } = await github.rest.issues.listLabelsOnIssue({ owner, repo, issue_number: number });
+            const have = new Set(cur.map(l => l.name));
+            const add = ok ? LABELS.approved : LABELS.pending;
+            const rm  = ok ? LABELS.pending  : LABELS.approved;
 
-            if (add.some(l => !have.has(l))) {
+            if (add.some(n => !have.has(n))) {
               await github.rest.issues.addLabels({ owner, repo, issue_number: number, labels: add }).catch(() => {});
             }
-            for (const n of rm) {
-              if (have.has(n)) await github.rest.issues.removeLabel({ owner, repo, issue_number: number, name: n }).catch(() => {});
+            for (const n of rm) if (have.has(n)) {
+              await github.rest.issues.removeLabel({ owner, repo, issue_number: number, name: n }).catch(() => {});
             }
-            for (const n of ["Merge: successful","Merge: declined","Reopened"]) {
-              if (have.has(n)) await github.rest.issues.removeLabel({ owner, repo, issue_number: number, name: n }).catch(() => {});
+            for (const n of ["Merge: successful","Merge: declined","Reopened"]) if (have.has(n)) {
+              await github.rest.issues.removeLabel({ owner, repo, issue_number: number, name: n }).catch(() => {});
             }
-
-            const conclusion = hasEnough ? "success" : "failure";
-            const title = hasEnough ? `Approved (${approvals}/${REQUIRED_APPROVALS})` : `Waiting for approvals (${approvals}/${REQUIRED_APPROVALS})`;
 
             await github.rest.checks.create({
               owner, repo,
@@ -94,8 +107,11 @@ jobs:
               head_sha: pr.head.sha,
               status: "completed",
               completed_at: new Date().toISOString(),
-              conclusion,
-              output: { title, summary: hasEnough ? "Required approvals met. You can merge." : "Not enough approvals yet. Request reviews from CODEOWNERS." }
+              conclusion: ok ? "success" : "failure",
+              output: {
+                title: ok ? `Approved (${approvals}/${REQUIRED})` : `Waiting for approvals (${approvals}/${REQUIRED})`,
+                summary: ok ? "Required approvals met. You can merge." : "Not enough approvals yet. Request reviews from CODEOWNERS."
+              }
             });
 
   state:
@@ -117,21 +133,22 @@ jobs:
               "Merge: declined":   "d93f0b",
               "Reopened":          "0366d6"
             };
-
             async function ensure(name) {
               try { await github.rest.issues.getLabel({ owner, repo, name }); }
               catch { await github.rest.issues.createLabel({ owner, repo, name, color: COLORS[name] || "ededed" }).catch(() => {}); }
             }
             for (const n of Object.keys(COLORS)) await ensure(n);
 
-            const { data: current } = await github.rest.issues.listLabelsOnIssue({ owner, repo, issue_number: number });
-            const have = new Set(current.map(l => l.name));
-            const toRemove = [...have].filter(n => n.startsWith("PA: ") || ["Merge: successful","Merge: declined","Reopened"].includes(n));
-            for (const n of toRemove) await github.rest.issues.removeLabel({ owner, repo, issue_number: number, name: n }).catch(() => {});
+            const { data: cur } = await github.rest.issues.listLabelsOnIssue({ owner, repo, issue_number: number });
+            const have = new Set(cur.map(l => l.name));
+            const purge = [...have].filter(n => n.startsWith("PA: ") || ["Merge: successful","Merge: declined","Reopened"].includes(n));
+            for (const n of purge) await github.rest.issues.removeLabel({ owner, repo, issue_number: number, name: n }).catch(() => {});
 
-            if (context.eventName === "pull_request_target" && context.payload.action === "reopened") {
+            if (context.payload.action === "reopened") {
               await github.rest.issues.addLabels({ owner, repo, issue_number: number, labels: ["Reopened"] }).catch(() => {});
-            } else if (context.eventName === "pull_request_target" && context.payload.action === "closed") {
-              const label = pr.merged ? "Merge: successful" : "Merge: declined";
-              await github.rest.issues.addLabels({ owner, repo, issue_number: number, labels: [label] }).catch(() => {});
+            } else if (context.payload.action === "closed") {
+              await github.rest.issues.addLabels({
+                owner, repo, issue_number: number,
+                labels: [pr.merged ? "Merge: successful" : "Merge: declined"]
+              }).catch(() => {});
             }
