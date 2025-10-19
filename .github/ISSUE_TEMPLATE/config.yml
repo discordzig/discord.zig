@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Security issue (private)
+    url: https://github.com/discordzig/discord.zig/security/advisories/new
+    about: Report security vulnerabilities privately.
+  - name: Questions & ideas
+    url: https://github.com/discordzig/discord.zig/discussions/new
+    about: Use Discussions for questions or design proposals.
