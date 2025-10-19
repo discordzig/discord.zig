@@ -1,0 +1,18 @@
+name: Bug report
+description: Report a reproducible bug (not security issues)
+labels: ["type:bug"]
+body:
+  - type: input
+    id: zig
+    attributes: { label: Zig version, placeholder: "0.13.0" }
+    validations: { required: true }
+  - type: textarea
+    id: repro
+    attributes: { label: Steps to reproduce, description: Minimal steps & code snippet. }
+    validations: { required: true }
+  - type: textarea
+    id: expected
+    attributes: { label: Expected behavior }
+  - type: textarea
+    id: actual
+    attributes: { label: Actual behavior / logs }
