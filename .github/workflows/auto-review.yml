@@ -1,0 +1,19 @@
+name: Auto request reviews (CODEOWNERS)
+
+on:
+  pull_request_target:
+    types: [opened, ready_for_review, reopened, synchronize]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  request:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: necojackarc/auto-request-review@v0.7.0
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          config: .github/CODEOWNERS
