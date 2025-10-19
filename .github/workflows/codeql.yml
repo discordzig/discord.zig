@@ -3,14 +3,50 @@ on:
   push: { branches: [main] }
   pull_request: { branches: [main] }
   schedule: [{ cron: "0 2 * * 1" }]
+
 permissions:
   contents: read
   security-events: write
+
 jobs:
   analyze:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: github/codeql-action/init@v3
-        with: { languages: "cpp" }
-      - uses: github/codeql-action/analyze@v3
+      - name: Detect languages
+        id: detect
+        shell: bash
+        run: |
+          langs=""
+          git ls-files '*.c' '*.cc' '*.cpp' '*.h' '*.hpp' >/dev/null 2>&1 && langs="${langs}cpp,"
+          git ls-files '*.js' '*.jsx' '*.ts' '*.tsx'       >/dev/null 2>&1 && langs="${langs}javascript,"
+          git ls-files '*.py'                              >/dev/null 2>&1 && langs="${langs}python,"
+          git ls-files '*.go'                              >/dev/null 2>&1 && langs="${langs}go,"
+          git ls-files '*.java'                            >/dev/null 2>&1 && langs="${langs}java,"
+          git ls-files '*.rb'                              >/dev/null 2>&1 && langs="${langs}ruby,"
+          git ls-files '*.cs'                              >/dev/null 2>&1 && langs="${langs}csharp,"
+          git ls-files '*.kt' '*.kts'                      >/dev/null 2>&1 && langs="${langs}kotlin,"
+          git ls-files '*.swift'                           >/dev/null 2>&1 && langs="${langs}swift,"
+          langs="${langs%,}"  # trim trailing comma
+          echo "LANGS=$langs" >> "$GITHUB_ENV"
+          if [ -n "$langs" ]; then echo "detected=true" >> "$GITHUB_OUTPUT"; else echo "detected=false" >> "$GITHUB_OUTPUT"; fi
+          echo "Detected languages: ${langs:-<none>}"
+
+      - name: Init CodeQL
+        if: env.LANGS != ''
+        uses: github/codeql-action/init@v3
+        with:
+          languages: ${{ env.LANGS }}
+          queries: +security-extended
+
+      - name: Autobuild
+        if: env.LANGS != ''
+        uses: github/codeql-action/autobuild@v3
+
+      - name: Analyze
+        if: env.LANGS != ''
+        uses: github/codeql-action/analyze@v3
+
+      - name: Skip (no supported languages present)
+        if: env.LANGS == ''
+        run: echo "Skipping CodeQL — no supported languages in repo yet."
