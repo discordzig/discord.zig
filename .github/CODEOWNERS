@@ -1,3 +1,4 @@
+* @discordzig/core @Error44s
 src/client.zig   @discordzig/core @Error44s
 src/gateway/**   @discordzig/core @Error44s
 src/rest/**      @discordzig/core @Error44s
