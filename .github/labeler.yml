@@ -1,0 +1,16 @@
+core:
+  - src/client.zig
+  - src/gateway/**
+  - src/rest/**
+models:
+  - src/models/**
+cache:
+  - src/cache/**
+ext:
+  - src/ext/**
+ci:
+  - ".github/**"
+docs:
+  - "README.md"
+  - "CONTRIBUTING.md"
+  - "CODE_OF_CONDUCT.md"
