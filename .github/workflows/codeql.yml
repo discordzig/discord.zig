@@ -17,20 +17,29 @@ jobs:
         id: detect
         shell: bash
         run: |
+          set -euo pipefail
           langs=""
-          git ls-files '*.c' '*.cc' '*.cpp' '*.h' '*.hpp' >/dev/null 2>&1 && langs="${langs}cpp,"
-          git ls-files '*.js' '*.jsx' '*.ts' '*.tsx'       >/dev/null 2>&1 && langs="${langs}javascript,"
-          git ls-files '*.py'                              >/dev/null 2>&1 && langs="${langs}python,"
-          git ls-files '*.go'                              >/dev/null 2>&1 && langs="${langs}go,"
-          git ls-files '*.java'                            >/dev/null 2>&1 && langs="${langs}java,"
-          git ls-files '*.rb'                              >/dev/null 2>&1 && langs="${langs}ruby,"
-          git ls-files '*.cs'                              >/dev/null 2>&1 && langs="${langs}csharp,"
-          git ls-files '*.kt' '*.kts'                      >/dev/null 2>&1 && langs="${langs}kotlin,"
-          git ls-files '*.swift'                           >/dev/null 2>&1 && langs="${langs}swift,"
-          langs="${langs%,}"  # trim trailing comma
+
+          has_files() { test -n "$(git ls-files "$@" || true)"; }
+
+          if has_files '*.c' '*.cc' '*.cpp' '*.h' '*.hpp'; then langs="${langs}cpp,"; fi
+          if has_files '*.js' '*.jsx' '*.ts' '*.tsx'; then   langs="${langs}javascript,"; fi
+          if has_files '*.py'; then                           langs="${langs}python,"; fi
+          if has_files '*.go'; then                           langs="${langs}go,"; fi
+          if has_files '*.java'; then                         langs="${langs}java,"; fi
+          if has_files '*.rb'; then                           langs="${langs}ruby,"; fi
+          if has_files '*.cs'; then                           langs="${langs}csharp,"; fi
+          if has_files '*.kt' '*.kts'; then                   langs="${langs}kotlin,"; fi
+          if has_files '*.swift'; then                        langs="${langs}swift,"; fi
+
+          langs="${langs%,}"   # trim trailing comma
           echo "LANGS=$langs" >> "$GITHUB_ENV"
-          if [ -n "$langs" ]; then echo "detected=true" >> "$GITHUB_OUTPUT"; else echo "detected=false" >> "$GITHUB_OUTPUT"; fi
           echo "Detected languages: ${langs:-<none>}"
+          if [ -n "$langs" ]; then
+            echo "detected=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "detected=false" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Init CodeQL
         if: env.LANGS != ''
@@ -39,8 +48,8 @@ jobs:
           languages: ${{ env.LANGS }}
           queries: +security-extended
 
-      - name: Autobuild
-        if: env.LANGS != ''
+      - name: Autobuild (compiled languages)
+        if: env.LANGS != '' && (contains(env.LANGS, 'cpp') || contains(env.LANGS, 'go'))
         uses: github/codeql-action/autobuild@v3
 
       - name: Analyze
