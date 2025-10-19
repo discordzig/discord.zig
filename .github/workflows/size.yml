@@ -1,9 +1,13 @@
 name: PR Size
+
 on:
   pull_request_target:
+
 permissions:
-  pull-requests: write
   contents: read
+  pull-requests: write
+  issues: write
+
 jobs:
   size:
     runs-on: ubuntu-latest
