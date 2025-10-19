@@ -1,0 +1,20 @@
+name: Commit & PR title policy
+on:
+  pull_request_target:
+    types: [opened, edited, synchronize, reopened]
+permissions:
+  contents: read
+  pull-requests: read
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - run: npm i -g @commitlint/cli @commitlint/config-conventional
+      - name: Validate commits
+        run: |
+          git fetch origin ${{ github.base_ref }} --depth=1
+          npx commitlint --from=origin/${{ github.base_ref }} --to=HEAD
+      - name: Validate PR title
+        run: echo "${{ github.event.pull_request.title }}" | npx commitlint
