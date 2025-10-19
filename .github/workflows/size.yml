@@ -1,7 +1,6 @@
 name: PR Size
 
 on:
-  pull_request:
   pull_request_target:
 
 permissions:
@@ -9,19 +8,9 @@ permissions:
   pull-requests: write
   issues: write
 
-concurrency:
-  group: pr-size-${{ github.event.pull_request.node_id || github.run_id }}
-  cancel-in-progress: true
-
 jobs:
   size:
     runs-on: ubuntu-latest
-    if: >
-      ${{
-        github.event_name == 'pull_request_target' ||
-        (github.event_name == 'pull_request' &&
-         github.event.pull_request.head.repo.full_name == github.repository)
-      }}
     steps:
       - uses: pascalgn/size-label-action@v0.5.5
         env:
