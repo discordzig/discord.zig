@@ -6,9 +6,17 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: goto-bus-stop/setup-zig@v2
+        with: { version: "0.13.0" }
+
       - name: Require license header
         run: |
-          missing=$(git ls-files '*.zig' | xargs -I{} bash -lc 'grep -q "Licensed under the MIT License" "{}" || echo "{}"')
-          test -z "$missing" || (echo "Missing license header in:" && echo "$missing" && exit 1)
+          missing=$(git ls-files '*.zig' | xargs -I{} bash -lc 'grep -q "Licensed under the MIT License" "{}" || echo "{}"' || true)
+          if [ -n "$missing" ]; then
+            echo "Missing license header in:"
+            echo "$missing"
+            exit 1
+          fi
+
       - name: Format (check)
         run: zig fmt --check .
