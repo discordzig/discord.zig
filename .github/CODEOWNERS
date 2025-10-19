@@ -1,10 +1,9 @@
-* @discordzig/core @Error44s
-src/client.zig   @discordzig/core @Error44s
-src/gateway/**   @discordzig/core @Error44s
-src/rest/**      @discordzig/core @Error44s
-src/models/**    @discordzig/core @Error44s
-src/cache/**     @discordzig/core @Error44s
-
-src/ext/**       @discordzig/ext
-.github/**       @discordzig/ci
-README.md        @discordzig/docs
+*                  @discordzig/core @Error44s
+/src/client.zig    @discordzig/core @Error44s
+/src/gateway/**    @discordzig/core @Error44s
+/src/rest/**       @discordzig/core @Error44s
+/src/models/**     @discordzig/core @Error44s
+/src/cache/**      @discordzig/core @Error44s
+/src/ext/**        @discordzig/ext
+/.github/**        @discordzig/ci
+/README.md         @discordzig/docs
