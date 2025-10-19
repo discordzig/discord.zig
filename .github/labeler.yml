@@ -1,16 +1,28 @@
 core:
-  - src/client.zig
-  - src/gateway/**
-  - src/rest/**
+  - changed-files:
+      - any-glob-to-any-file:
+          - src/client.zig
+          - src/gateway/**
+          - src/rest/**
 models:
-  - src/models/**
+  - changed-files:
+      - any-glob-to-any-file:
+          - src/models/**
 cache:
-  - src/cache/**
+  - changed-files:
+      - any-glob-to-any-file:
+          - src/cache/**
 ext:
-  - src/ext/**
+  - changed-files:
+      - any-glob-to-any-file:
+          - src/ext/**
 ci:
-  - ".github/**"
+  - changed-files:
+      - any-glob-to-any-file:
+          - .github/**
 docs:
-  - "README.md"
-  - "CONTRIBUTING.md"
-  - "CODE_OF_CONDUCT.md"
+  - changed-files:
+      - any-glob-to-any-file:
+          - README.md
+          - CONTRIBUTING.md
+          - CODE_OF_CONDUCT.md
