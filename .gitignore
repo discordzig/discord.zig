@@ -1,0 +1,27 @@
+zig-cache/
+zig-out/
+*.o
+*.exe
+*.dll
+*.dylib
+*.so
+
+# Build artifacts
+build/
+debug/
+release/
+
+# Temporary files
+*.log
+*.tmp
+*.swp
+*.bak
+
+# IDE-specific
+.vscode/
+.idea/
+.DS_Store
+
+# Test outputs
+*.test
+*.profdata
