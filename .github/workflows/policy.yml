@@ -1,0 +1,14 @@
+name: Policy checks
+on: [pull_request]
+permissions: { contents: read }
+jobs:
+  policy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Require license header
+        run: |
+          missing=$(git ls-files '*.zig' | xargs -I{} bash -lc 'grep -q "Licensed under the MIT License" "{}" || echo "{}"')
+          test -z "$missing" || (echo "Missing license header in:" && echo "$missing" && exit 1)
+      - name: Format (check)
+        run: zig fmt --check .
