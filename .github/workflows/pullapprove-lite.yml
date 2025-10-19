@@ -1,0 +1,99 @@
+name: PullApprove (Lite)
+
+on:
+  pull_request_target:
+    types: [opened, ready_for_review, reopened, synchronize, review_requested, review_request_removed]
+  pull_request_review:
+    types: [submitted, edited, dismissed]
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+  checks: write
+
+concurrency:
+  group: pa-lite-${{ github.event.pull_request.node_id || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  gate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Evaluate approvals and update labels/check
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const owner = context.repo.owner;
+            const repo  = context.repo.repo;
+            const pr    = context.payload.pull_request;
+            const number = pr.number;
+
+            const REQUIRED_APPROVALS = 1;    // <- wie viele Approvals nötig
+            const LABELS = {
+              pending:  ["PA: Maintainers pending", "PA: All Contributors pending"],
+              approved: ["PA: Maintainers approved", "PA: All Contributors approved"]
+            };
+            const LABEL_COLORS = {
+              "PA: Maintainers pending":  "c5def5",
+              "PA: All Contributors pending": "c5def5",
+              "PA: Maintainers approved": "bfe5bf",
+              "PA: All Contributors approved": "bfe5bf"
+            };
+
+            const allReviews = await github.paginate(github.pulls.listReviews, {
+              owner, repo, pull_number: number, per_page: 100
+            });
+            const latestByUser = new Map();
+            for (const r of allReviews) latestByUser.set(r.user.login, r.state);
+            const approvals = [...latestByUser.values()].filter(s => s === "APPROVED").length;
+            const hasEnough = approvals >= REQUIRED_APPROVALS;
+
+            async function ensureLabel(name) {
+              try {
+                await github.issues.getLabel({ owner, repo, name });
+              } catch {
+                await github.issues.createLabel({
+                  owner, repo, name,
+                  color: LABEL_COLORS[name] || "ededed"
+                }).catch(() => {});
+              }
+            }
+            for (const l of [...LABELS.pending, ...LABELS.approved]) await ensureLabel(l);
+
+            const { data: current } = await github.issues.listLabelsOnIssue({ owner, repo, issue_number: number });
+            const have = new Set(current.map(l => l.name));
+
+            const add = hasEnough ? LABELS.approved : LABELS.pending;
+            const rm  = hasEnough ? LABELS.pending  : LABELS.approved;
+
+            if (add.some(l => !have.has(l))) {
+              await github.issues.addLabels({ owner, repo, issue_number: number, labels: add }).catch(() => {});
+            }
+            for (const n of rm) {
+              if (have.has(n)) {
+                await github.issues.removeLabel({ owner, repo, issue_number: number, name: n }).catch(() => {});
+              }
+            }
+
+            const now = new Date().toISOString();
+            const headSha = pr.head.sha;
+            const conclusion = hasEnough ? "success" : "failure";
+            const title = hasEnough
+              ? `Approved (${approvals}/${REQUIRED_APPROVALS})`
+              : `Waiting for approvals (${approvals}/${REQUIRED_APPROVALS})`;
+
+            await github.checks.create({
+              owner, repo,
+              name: "PullApprove (Lite)",
+              head_sha: headSha,
+              status: "completed",
+              completed_at: now,
+              conclusion,
+              output: {
+                title,
+                summary: hasEnough
+                  ? "Required approvals met. You can merge."
+                  : "Not enough approvals yet. Request reviews from CODEOWNERS."
+              }
+            });
