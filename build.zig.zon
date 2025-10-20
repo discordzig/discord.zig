@@ -1,0 +1,7 @@
+.{
+    .name = "discord.zig",
+    .version = "0.1.0pre1",
+    .paths = .{ .src = "src", .examples = "examples" },
+    .dependencies = .{},
+    .minimum_zig_version = "0.13.0",
+}

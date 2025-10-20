@@ -1,26 +1,90 @@
-name: CI
+name: CI (Zig)
+
 on:
-  pull_request:
   push:
     branches: [main, develop]
+    paths-ignore:
+      - '**/*.md'
+      - 'LICENSE'
+      - '.github/ISSUE_TEMPLATE/**'
+  pull_request:
+    paths-ignore:
+      - '**/*.md'
+      - 'LICENSE'
+      - '.github/ISSUE_TEMPLATE/**'
+
 permissions:
   contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build-test:
-    name: build & test (${{ matrix.os }}, Zig ${{ matrix.zig }})
+    name: ${{ matrix.os }} · Zig ${{ matrix.zig }} · ${{ matrix.profile }}
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
-        zig: ["0.13.0"]
+        zig: ['0.13.0']
+        profile: [Debug, ReleaseSafe]
+        include:
+          - os: ubuntu-latest
+            zig: '0.13.0'
+            profile: Debug
+            asan: true
+    env:
+      ZIG_GLOBAL_CACHE_DIR: ${{ runner.temp }}/zig-global-cache
+      ZIG_LOCAL_CACHE_DIR:  ${{ runner.temp }}/zig-local-cache
     steps:
       - uses: actions/checkout@v4
-      - uses: goto-bus-stop/setup-zig@v2
-        with: { version: ${{ matrix.zig }} }
+
+      - name: Set up Zig ${{ matrix.zig }}
+        uses: goto-bus-stop/setup-zig@v2
+        with:
+          version: ${{ matrix.zig }}
+
+      - name: Cache Zig global/local cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ${{ env.ZIG_GLOBAL_CACHE_DIR }}
+            ${{ env.ZIG_LOCAL_CACHE_DIR }}
+          key: zig-${{ matrix.zig }}-${{ runner.os }}-${{ matrix.profile }}-${{ hashFiles('build.zig', 'build.zig.zon') }}
+          restore-keys: zig-${{ matrix.zig }}-${{ runner.os }}-
+
+      - name: Print versions
+        run: |
+          zig version
+          zig env
+
       - name: Format (check)
         run: zig fmt --check .
-      - name: Build
-        run: zig build
+
+      - name: Build (${{ matrix.profile }})
+        shell: bash
+        run: |
+          FLAGS=""
+          if [ "${{ matrix.asan }}" = "true" ]; then
+            FLAGS="$FLAGS -Dsanitize=address"
+          fi
+          zig build -Doptimize=${{ matrix.profile }} $FLAGS
+
       - name: Tests
-        run: zig build test
+        shell: bash
+        run: |
+          FLAGS=""
+          if [ "${{ matrix.asan }}" = "true" ]; then
+            FLAGS="$FLAGS -Dsanitize=address"
+          fi
+          zig build test -Doptimize=${{ matrix.profile }} $FLAGS
+
+      - name: Upload zig-out on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: zig-out-${{ matrix.os }}-${{ matrix.profile }}
+          path: zig-out/
+          if-no-files-found: ignore
