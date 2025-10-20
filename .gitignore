@@ -1,32 +1,47 @@
-# Zig build and cache directories
 zig-cache/
+**/zig-cache/
 zig-out/
-*.o
-*.exe
-*.dll
-*.dylib
-*.so
+**/zig-out/
 
-
-# Build artifacts
 build/
 debug/
 release/
 
+*.o
+*.obj
+*.a
+*.lib
+*.dll
+*.dylib
+*.so
+*.exe
+*.pdb
 
-# Temporary files
-*.log
-*.tmp
-*.swp
-*.bak
-
-
-# IDE-specific
-.vscode/
-.idea/
-.DS_Store
-
-
-# Test outputs
 *.test
 *.profdata
+coverage/
+llvm-profdata*
+llvm-cov*
+
+*.log
+*.tmp
+*.temp
+*.swp
+*.swo
+*.bak
+
+.vscode/
+.idea/
+*.iml
+.fleet/
+.vscode-test/
+
+.DS_Store
+Thumbs.db
+
+.env
+.env.*
+!.env.example
+
+.tags
+.tags_sorted_by_file
